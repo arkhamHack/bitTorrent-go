@@ -5,6 +5,4 @@ To install enter :
 
 go get github.com/arkhamHack/bitTorrent-go
 
-Steps to use:
-
-1. run command format: bitTorrent-go 'inputfile_name' 'outputfile_name'
+Run command format: bitTorrent-go 'inputfile_name' 'outputfile_name'
