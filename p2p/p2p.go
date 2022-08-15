@@ -89,13 +89,13 @@ func attemptPieceDownload(c *client.Client, p *piece) ([]byte, error) {
 				if p.length-state.req < blkSize {
 					blkSize = p.length - state.req
 				}
-				err := state.client.ReQuest(p.index, state.req, blkSize)
+				err := c.ReQuest(p.index, state.req, blkSize)
 				if err != nil {
 
 					return nil, err
 				}
+				state.backlog++
 				state.req += blkSize
-				state.backlog--
 			}
 		}
 		err := state.readMsg()
@@ -121,7 +121,7 @@ func (t *Torrent) calcPieceSize(index int) int {
 func checkIntegrity(pw *piece, buf []byte) error {
 	hash := sha1.Sum(buf)
 	if !bytes.Equal(hash[:], pw.hash[:]) {
-		return fmt.Errorf("Index %d failed integrity check", pw.index)
+		return fmt.Errorf("index %d failed integrity check", pw.index)
 	}
 	return nil
 }
@@ -132,6 +132,7 @@ func (t *Torrent) downloadBegin(peer peers.Peer, wrkQ chan *piece, res chan *pie
 		return
 	}
 	defer c.Conn.Close()
+	log.Printf("\nSuccessfull handshake with %s\n", peer.Ip)
 	c.Unchoke()
 	c.Interested()
 
@@ -161,7 +162,7 @@ func (t *Torrent) downloadBegin(peer peers.Peer, wrkQ chan *piece, res chan *pie
 //downloads torrent and saves file in memory
 
 func (t *Torrent) Download() ([]byte, error) {
-	log.Println("download of %s starting...", t.Name)
+	log.Println("download starting for", t.Name)
 	wrkQ := make(chan *piece, len(t.PieceHashes))
 	res := make(chan *pieceRes)
 	for index, hash := range t.PieceHashes {
@@ -178,10 +179,11 @@ func (t *Torrent) Download() ([]byte, error) {
 		fin := <-res
 		begin, end := t.calcPieceBound(fin.index)
 		copy(buf[begin:end], fin.buf)
-		prt := float64(completedPieces) / float64(len(t.PieceHashes)) * 100
 		completedPieces++
-		pid := runtime.NumGoroutine()
-		log.Printf("%0.2f Downloaded #%d from peer %d \n", prt, fin.index, pid)
+
+		prt := float64(completedPieces) / float64(len(t.PieceHashes)) * 100
+		pid := runtime.NumGoroutine() - 1
+		log.Printf("(%0.2f%%) Downloaded #%d from peer %d \n", prt, fin.index, pid)
 	}
 	close(wrkQ)
 	return buf, nil
